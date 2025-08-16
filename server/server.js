@@ -8,17 +8,19 @@ import http from "http";
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
+import otpRoutes from "./routes/otpRoutes.js";
 
 dotenv.config();
 const app = express();
 
-app.use(cors());
+app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 app.use(express.json());
 
 // API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/otp", otpRoutes);
 
 // Connect DB
 mongoose.connect(process.env.MONGO_URI)
@@ -31,8 +33,9 @@ const server = http.createServer(app);
 // Socket.IO server
 const io = new Server(server, {
     cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
+        origin: "http://localhost:5173",
+        methods: ["GET", "POST"],
+        credentials: true
     }
 });
 
@@ -50,16 +53,17 @@ io.on("connection", (socket) => {
     });
 
     // Send message event
-    socket.on("sendMessage", ({ senderId, receiverId, text, image }) => {
+    socket.on("sendMessage", ({ senderId, receiverId, text, image, _id }) => {
         const receiverSocketId = onlineUsers.get(receiverId);
+        const messagePayload = { senderId, receiverId, text, image, _id, createdAt: new Date() };
+
+        // Send to receiver if online
         if (receiverSocketId) {
-            io.to(receiverSocketId).emit("getMessage", {
-                senderId,
-                text,
-                image,
-                createdAt: new Date()
-            });
+            io.to(receiverSocketId).emit("getMessage", messagePayload);
         }
+
+        // Optionally emit back to sender for confirmation
+        socket.emit("getMessage", messagePayload);
     });
 
     // Handle disconnect

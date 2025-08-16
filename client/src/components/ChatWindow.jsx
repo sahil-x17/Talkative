@@ -10,6 +10,7 @@ export default function ChatWindow({
 }) {
   const bottomRef = useRef(null);
 
+  // Scroll to bottom whenever messages change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -23,38 +24,36 @@ export default function ChatWindow({
   }
 
   return (
-    <div className="flex flex-col flex-1 bg-gray-900 text-gray-200">
+    <div className="flex flex-col flex-1 min-h-0 bg-gray-900 text-gray-200">
       {/* Header */}
-      <div className="p-4 border-b border-gray-700 bg-gray-800 shadow-sm flex items-center gap-3">
+      <div className="shrink-0 p-4 border-b border-gray-700 bg-gray-800 shadow-sm flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-gray-600 flex items-center justify-center font-bold text-gray-100">
           {selectedUser.name?.[0]?.toUpperCase() || "?"}
         </div>
         <span className="font-semibold text-lg">{selectedUser.username}</span>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto">
-        {/* Inner flex ensures content sticks to bottom when short */}
-        <div className="h-full flex flex-col justify-end p-4 space-y-3">
-          {messages.map((m, i) => {
-            const isSender =
-              String(m.senderId ?? m.sender) === String(currentUser._id);
-            return (
-              <div
-                key={m._id || i}
-                className={`flex ${isSender ? "justify-end" : "justify-start"}`}
-              >
-                <Message text={m.text} sender={isSender} />
-              </div>
-            );
-          })}
-          {/* Bottom anchor for smooth scroll */}
-          <div ref={bottomRef} />
-        </div>
+      {/* Messages container */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
+        {messages.map((m, i) => {
+          const isSender = String(m.senderId ?? m.sender) === String(currentUser._id);
+          return (
+            <div
+              key={m._id || `${m.text}-${i}-${m.senderId}`}
+              className={`flex ${isSender ? "justify-end" : "justify-start"}`}
+            >
+              <Message text={m.text} sender={isSender} />
+            </div>
+          );
+        })}
+        <div ref={bottomRef} />
       </div>
 
       {/* Input */}
-      <InputBox sendMessage={sendMessage} />
+      <div className="shrink-0">
+        <InputBox sendMessage={sendMessage} />
+      </div>
     </div>
   );
+
 }
