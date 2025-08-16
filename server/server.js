@@ -13,60 +13,75 @@ import otpRoutes from "./routes/otpRoutes.js";
 dotenv.config();
 const app = express();
 
-// ✅ Use env vars for allowed origins (Vercel frontend + preview + local)
+// ---------------------------
+// ✅ Allowed origins
+// ---------------------------
 const allowedOrigins = [
-  process.env.CLIENT_ORIGIN,          // e.g. https://talkative.vercel.app
-  process.env.CLIENT_ORIGIN_PREVIEW,  // e.g. https://*.vercel.app
-  "http://localhost:5173"
-].filter(Boolean);
+  "http://localhost:5173",               // local dev
+  "https://talkative-ten.vercel.app",    // production
+];
 
-app.use(cors({
+// Function-based CORS config
+const corsOptions = {
   origin: (origin, cb) => {
     if (!origin) return cb(null, true); // allow server-to-server/curl
 
-    const isAllowed = allowedOrigins.some((allowed) => {
-      if (allowed.includes("*")) {
-        // convert wildcard into regex
-        const regex = new RegExp("^" + allowed.replace("*", ".*") + "$");
-        return regex.test(origin);
-      }
-      return origin === allowed;
-    });
+    const isAllowed =
+      allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin);
 
     if (isAllowed) cb(null, true);
-    else cb(new Error("Not allowed by CORS"));
+    else {
+      console.log("❌ Blocked by CORS:", origin);
+      cb(new Error("Not allowed by CORS: " + origin));
+    }
   },
-  credentials: true
-}));
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
-// API routes
+// ---------------------------
+// ✅ API routes
+// ---------------------------
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/otp", otpRoutes);
 
-// Health check endpoint (useful for Render)
+// Health check (for Render/monitoring)
 app.get("/health", (_, res) => res.send("ok"));
 
-// Connect DB
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => console.log("✅ MongoDB connected"))
-.catch(err => console.error("❌ MongoDB error:", err));
+// ---------------------------
+// ✅ MongoDB connection
+// ---------------------------
+mongoose
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch((err) => console.error("❌ MongoDB error:", err));
 
-// Create HTTP server
+// ---------------------------
+// ✅ HTTP + Socket.io server
+// ---------------------------
 const server = http.createServer(app);
 
-// Socket.IO server
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+
+      const isAllowed =
+        allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin);
+
+      if (isAllowed) cb(null, true);
+      else cb(new Error("Not allowed by CORS (socket): " + origin));
+    },
     methods: ["GET", "POST"],
-    credentials: true
-  }
+    credentials: true,
+  },
 });
 
 // Track online users
@@ -83,7 +98,14 @@ io.on("connection", (socket) => {
 
   socket.on("sendMessage", ({ senderId, receiverId, text, image, _id }) => {
     const receiverSocketId = onlineUsers.get(receiverId);
-    const messagePayload = { senderId, receiverId, text, image, _id, createdAt: new Date() };
+    const messagePayload = {
+      senderId,
+      receiverId,
+      text,
+      image,
+      _id,
+      createdAt: new Date(),
+    };
 
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("getMessage", messagePayload);
@@ -107,7 +129,9 @@ io.on("connection", (socket) => {
 // Attach io to app (optional: if controllers need it)
 app.set("io", io);
 
-// ✅ Listen on 0.0.0.0 for Render
+// ---------------------------
+// ✅ Start server
+// ---------------------------
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on port ${PORT}`);
