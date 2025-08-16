@@ -10,7 +10,12 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     if (user) {
-      const newSocket = io("http://localhost:5000");
+      // Use env variable for Socket.IO server
+      const newSocket = io(import.meta.env.VITE_SOCKET_URL, {
+        withCredentials: true,
+        transports: ["websocket"], // prefer WS in prod
+      });
+
       newSocket.emit("addUser", user._id);
       setSocket(newSocket);
 
