@@ -1,4 +1,6 @@
 import axios from "axios";
+import.meta.env.VITE_API_URL
+import.meta.env.VITE_SOCKET_URL
 
 const API = axios.create({
   // Use env variable for backend URL
