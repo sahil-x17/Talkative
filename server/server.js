@@ -13,20 +13,28 @@ import otpRoutes from "./routes/otpRoutes.js";
 dotenv.config();
 const app = express();
 
-// ✅ Use env vars for allowed origins (Vercel frontend)
+// ✅ Use env vars for allowed origins (Vercel frontend + preview + local)
 const allowedOrigins = [
-  process.env.CLIENT_ORIGIN,          // e.g. https://yourapp.vercel.app
-  process.env.CLIENT_ORIGIN_PREVIEW,  // e.g. https://yourapp-git-main-xxx.vercel.app
-  "http://localhost:5173"             // for local dev
+  process.env.CLIENT_ORIGIN,          // e.g. https://talkative.vercel.app
+  process.env.CLIENT_ORIGIN_PREVIEW,  // e.g. https://*.vercel.app
+  "http://localhost:5173"
 ].filter(Boolean);
 
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      cb(null, true);
-    } else {
-      cb(new Error("Not allowed by CORS"));
-    }
+    if (!origin) return cb(null, true); // allow server-to-server/curl
+
+    const isAllowed = allowedOrigins.some((allowed) => {
+      if (allowed.includes("*")) {
+        // convert wildcard into regex
+        const regex = new RegExp("^" + allowed.replace("*", ".*") + "$");
+        return regex.test(origin);
+      }
+      return origin === allowed;
+    });
+
+    if (isAllowed) cb(null, true);
+    else cb(new Error("Not allowed by CORS"));
   },
   credentials: true
 }));
